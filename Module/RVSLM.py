@@ -109,24 +109,24 @@ class RVSLM:
                         self.data.update_next_speed_limit(i - 1, current.prior.maximum_safety_speed)
 
     # 合并邻近路段
-    def gap_merge(self, a, b, c):
-        gap_list = [a[i + 1] - a[i] for i in range(len(a) - 1)]
+    def gap_merge(self, anomaly, sub_anomaly, ab_anomaly):
+        gap_list = [anomaly[i + 1] - anomaly[i] for i in range(len(anomaly) - 1)]
 
         # 如果两个端点距离较近 则进行合并
-        for i in range(len(a) - 1):
-            if i < len(a) - 1:
+        for i in range(len(anomaly) - 1):
+            if i < len(anomaly) - 1:
                 if gap_list[i] <= self.length:
-                    b.append([a[i], a[i + 1]])
+                    sub_anomaly.append([anomaly[i], anomaly[i + 1]])
 
-        for i in range(len(a)):
-            if a[i] not in sum(b, []):
-                c.append(a[i])
+        for i in range(len(anomaly)):
+            if anomaly[i] not in sum(sub_anomaly, []):
+                ab_anomaly.append(anomaly[i])
 
-    # 合并路段处理
-    def sub_process(self, b, c):
+    # 进行临近路段合并处理
+    def sub_process(self, sub_anomaly, ab_anomaly):
         right_index = []
         right = 0
-        for item in b:
+        for item in sub_anomaly:
             min_maximum_safety_speed = 0x3f3f3f3f  # 合并路段最小安全速度
             for i in range(item[0], item[1] + 1):
                 min_maximum_safety_speed = min(self.data.get_position(i).maximum_safety_speed, min_maximum_safety_speed)
@@ -142,8 +142,8 @@ class RVSLM:
             right_index.append(right)
 
         # 非合并路段的处理
-        if c is not None:
-            for i in c:
+        if ab_anomaly is not None:
+            for i in ab_anomaly:
                 # 获取距离当前节点左侧 最近的区间右端点
                 max_right = 0
                 for u in range(len(right_index)):
@@ -155,6 +155,14 @@ class RVSLM:
                         self.process_car_checker(j)
                     elif self.data.get_position(j).type == 1:
                         self.process_camera(j)
+
+    # 单个节点的路段限速
+    def process(self, nodes):
+        for node in nodes:
+            if self.data.get_position(node).type == 0:
+                self.process_car_checker(node)
+            elif self.data.get_position(node).type == 1:
+                self.process_camera(node)
 
     def get_min_speed(self, index):
         min_speed = 0x3f3f3f3f
@@ -177,9 +185,8 @@ class RVSLM:
         # 直接使用json列表对象
         self.data = transfer_json_to_list(path)
 
+        # 异常节点列表
         anomaly = []
-        sub_anomaly = []
-        ab_anomaly = []
 
         current = self.data.head
         while current is not None:
@@ -192,8 +199,16 @@ class RVSLM:
                 self.data.update_next_speed_limit(self.data.getIndex(current.stake_id), current.fixed_speed_limit)
             current = current.next
 
-        self.gap_merge(anomaly, sub_anomaly, ab_anomaly)
-        self.sub_process(sub_anomaly, ab_anomaly)
+        # 保存异常节点进行临近点 合并后的 区间
+        sub_anomaly = []
+        # 不能进行合并后，剩余的单独节点
+        ab_anomaly = []
+
+        # 不使用区间合并
+        # self.gap_merge(anomaly, sub_anomaly, ab_anomaly)
+        # self.sub_process(sub_anomaly, ab_anomaly)
+
+        self.process(anomaly)
 
         current = self.data.head
         while current is not None:
@@ -214,7 +229,6 @@ class RVSLM:
         # print(now_v)
         # 保存或传递处理结果
         return list_to_json_str(self.data)
-
 
 # if __name__ == '__main__':
 #     model = RVSLM()

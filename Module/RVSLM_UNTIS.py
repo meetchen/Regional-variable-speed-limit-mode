@@ -334,8 +334,6 @@ def get_database_connection(local=True):
     host = '127.0.0.1'
     password = 'root'
     if not local:
-        #     host = '8.142.73.253'
-        #     password = 'xxd12315'
         config_dict = read_config("../config/RVSLM_config.ini")
         return mysql.connector.connect(
             host=config_dict['host'],
