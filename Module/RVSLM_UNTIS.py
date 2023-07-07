@@ -392,7 +392,7 @@ def get_info(flow_id, table_name, local=True):
     cursor = conn.cursor()
 
     # 将列名连接成字符串，用于构建SQL查询语句
-    columns_str = "stake_id, visibility, share, type, weather, vms," \
+    columns_str = "stake_id, visibility, share, type, weather, vms," \  
                   " vms_speed_limit, speed, fixed_speed_limit, maximum_safety_speed, last_speed_limit, " \
                   "speed_limit,next_speed_limit,service_level"
 

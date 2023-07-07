@@ -33,6 +33,7 @@ class AllDayCommute(MBase):
         self.sendBack()
 
 
+
 if __name__ == '__main__':
     data = '{msgNode:{tag:456,topic:15},paras:{pDef:0,pIns:1,module_Deal:0,wMode:1,data_Items:[{' \
            'relevantData_Value:23,test2:1},{relevantData_Value:32,test2:1}{relevantData_Value:21,test2:1}]}} '
