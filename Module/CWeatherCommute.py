@@ -1,8 +1,11 @@
 import json
 import re
+import sys
 
 from Module.MBase import MBase
 from utils.poolRvslm import POOL_RVSLM
+
+sys.path.append("C:\\ModuleR")
 
 
 class CWeatherCommute(MBase):
@@ -54,7 +57,7 @@ class CWeatherCommute(MBase):
             all_cameras_stubs = stub_array
 
             # 查询所有情报板的桩号，基于mysql视图，预先创建好的视图(将所有可变情报板的数据，组织为一个视图)
-            sql = "select operating_pile  from gulai where device_name  = '情报板' and left_right_side = '右幅'"
+            sql = "select operating_pile  from gulai where device_name  = '情报板' and left_right_side = '左幅'"
             all_message_board_stubs = self.query(sql)
             all_message_board_stubs = [item[0] for item in all_message_board_stubs]
 
@@ -140,7 +143,7 @@ class CWeatherCommute(MBase):
         """
         平滑整个路段的限速值
         :param begin_stub_index: 最下游检测到异常情况的摄像头桩号的下标
-        :param lspeed: 给定的安全速度
+        :param lspeed: 给定的最大安全速度
         :param mspeed: 平均速度
         :return: 平滑完后每个个路段的速度
         """
@@ -158,44 +161,49 @@ class CWeatherCommute(MBase):
 
 
 if __name__ == '__main__':
-    data = {
-        "msgNode": {
-            "topic": "302910591649516816",
-            "tag": "1905"
-        },
-        "paras": {
-            "pDef": "0",
-            "pIns": "1",
-            "wMode": "1",
-            "module_Deal": 0,
-            "data_Items": [
-                {
-                    "relevantData_Name": "stubs",
-                    "relevantData_Value": "YK158+910|100*130;YK176+035|101*80",
-                    "relevantData_Index": "1",
-                    "relevantData_Type": "String",
-                },
-                {
-                    "relevantData_Name": "DeviceNo",
-                    "relevantData_Value": "DEV0133060402503",
-                    "relevantData_Index": "2",
-                    "relevantData_Type": "String",
-                },
+    test = False
+    if test:
+        data = {
+            "msgNode": {
+                "topic": "302910591649516816",
+                "tag": "1905"
+            },
+            "paras": {
+                "pDef": "0",
+                "pIns": "1",
+                "wMode": "1",
+                "module_Deal": 0,
+                "data_Items": [
+                    {
+                        "relevantData_Name": "stubs",
+                        "relevantData_Value": "YK158+910|100*130;YK176+035|101*80",
+                        "relevantData_Index": "1",
+                        "relevantData_Type": "String",
+                    },
+                    {
+                        "relevantData_Name": "DeviceNo",
+                        "relevantData_Value": "DEV0133060402503",
+                        "relevantData_Index": "2",
+                        "relevantData_Type": "String",
+                    },
 
-            ]
+                ]
+            }
         }
-    }
 
+        # 转换为json字符串
+        data = json.dumps(data)
+
+        # 去掉双引号
+        data = str(data).replace('"', "")
+    else:
+        data = sys.argv[1]
+
+    # 创建实例对象
     weather = CWeatherCommute()
 
-    # 转换为json字符串
-    data = json.dumps(data)
-
-    # 去掉双引号
-    output = str(data).replace('"', "")
-
     # 解析数据
-    weather.jsonParse(output)
+    weather.jsonParse(data)
     weather.working()
 
     # 调用实现逻辑
