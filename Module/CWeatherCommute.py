@@ -159,6 +159,12 @@ class CWeatherCommute(MBase):
                     break
         return last_speed
 
+    def get_value_from_data_items(self, key):
+        for item in self.data_Items:
+            if item['relevantData_Name'] == key:
+                return item['relevantData_Value']
+        raise ValueError("Don't have this key：", key)
+
 
 if __name__ == '__main__':
     test = False
