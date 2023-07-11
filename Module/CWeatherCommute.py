@@ -1,11 +1,13 @@
 import json
 import re
 import sys
+import os
+from sys import argv
+
+sys.path.append("C:\\ModuleR")
 
 from Module.MBase import MBase
 from utils.poolRvslm import POOL_RVSLM
-
-sys.path.append("C:\\ModuleR")
 
 
 class CWeatherCommute(MBase):
@@ -16,9 +18,9 @@ class CWeatherCommute(MBase):
     def moduleFunction(self):
         # 工作模式
         if self.wMode == '1' and self.wMode != '':
-            stubs_info = self.get_value_from_data_items('stubs')
+            stubs_info = self.get_value_from_data_items('Stubs')
             device_no = self.get_value_from_data_items('DeviceNo')
-
+            last_stub = self.get_value_from_data_items('Location')
             stub_array = []
             lspeed_array = []
             mspeed_array = []
@@ -57,7 +59,7 @@ class CWeatherCommute(MBase):
             all_cameras_stubs = stub_array
 
             # 查询所有情报板的桩号，基于mysql视图，预先创建好的视图(将所有可变情报板的数据，组织为一个视图)
-            sql = "select operating_pile  from gulai where device_name  = '情报板' and left_right_side = '左幅'"
+            sql = "select operating_pile  from gulai where device_name = '情报板' and left_right_side = '左幅'"
             all_message_board_stubs = self.query(sql)
             all_message_board_stubs = [item[0] for item in all_message_board_stubs]
 
@@ -165,38 +167,108 @@ class CWeatherCommute(MBase):
                 return item['relevantData_Value']
         raise ValueError("Don't have this key：", key)
 
+    def float_string_to_int(self, num):
+        return round(float(num))
+
 
 if __name__ == '__main__':
-    test = False
+    test = True
     if test:
+        # data = {
+        #     "msgNode": {
+        #         "topic": "302910591649516816",
+        #         "tag": "1905"
+        #     },
+        #     "paras": {
+        #         "pDef": "0",
+        #         "pIns": "1",
+        #         "wMode": "1",
+        #         "module_Deal": 0,
+        #         "data_Items": [
+        #             {
+        #                 "relevantData_Name": "Stubs",
+        #                 "relevantData_Value": "YK158+910|100*130;YK176+035|101*80",
+        #                 "relevantData_Index": "1",
+        #                 "relevantData_Type": "String",
+        #             },
+        #             {
+        #                 "relevantData_Name": "DeviceNo",
+        #                 "relevantData_Value": "DEV0133060402503",
+        #                 "relevantData_Index": "2",
+        #                 "relevantData_Type": "String",
+        #             },
+        #
+        #         ]
+        #     }
+        # }
         data = {
             "msgNode": {
-                "topic": "302910591649516816",
-                "tag": "1905"
+                "topic": "637939643",
+                "tag": "3"
             },
             "paras": {
-                "pDef": "0",
-                "pIns": "1",
-                "wMode": "1",
-                "module_Deal": 0,
+                "pDef": "637939643",
+                "pIns": "26625",
+                "aDef": "3",
+                "aIns": "89016",
+                "wItem": "146055",
+                "wMode": "0",
+                "module_ID": "38",
+                "module_Name": "Wrvslm.py",
+                "module_Deal": "1",
                 "data_Items": [
                     {
-                        "relevantData_Name": "stubs",
-                        "relevantData_Value": "YK158+910|100*130;YK176+035|101*80",
+                        "relevantData_Name": "DeviceNo",
+                        "relevantData_Value": "1",
                         "relevantData_Index": "1",
                         "relevantData_Type": "String",
+                        "argName": "_DeviceNo"
                     },
                     {
-                        "relevantData_Name": "DeviceNo",
-                        "relevantData_Value": "DEV0133060402503",
+                        "relevantData_Name": "Location",
+                        "relevantData_Value": "137+610",
                         "relevantData_Index": "2",
                         "relevantData_Type": "String",
+                        "argName": "_Location"
                     },
-
+                    {
+                        "relevantData_Name": "ETime",
+                        "relevantData_Value": "test",
+                        "relevantData_Index": "3",
+                        "relevantData_Type": "String",
+                        "argName": "_ETime"
+                    },
+                    {
+                        "relevantData_Name": "Address",
+                        "relevantData_Value": "http://41af829e.r9.cpolar.top",
+                        "relevantData_Index": "4",
+                        "relevantData_Type": "String",
+                        "argName": "_Address"
+                    },
+                    {
+                        "relevantData_Name": "LisenerPort",
+                        "relevantData_Value": "80",
+                        "relevantData_Index": "5",
+                        "relevantData_Type": "String",
+                        "argName": "_LisenerPort"
+                    },
+                    {
+                        "relevantData_Name": "ServerName",
+                        "relevantData_Value": "",
+                        "relevantData_Index": "6",
+                        "relevantData_Type": "String",
+                        "argName": "_ServerName"
+                    },
+                    {
+                        "relevantData_Name": "Stubs",
+                        "relevantData_Value": "137+610|40*23.19607843137255;137+610|100*22.345555555555553;137+610|100*20.876470588235293;137+610|100*30.23222222222222;137+610|100*26.288888888888888;137+610|100*29.056140350877193",
+                        "relevantData_Index": "7",
+                        "relevantData_Type": "String",
+                        "argName": "_Stubs"
+                    }
                 ]
             }
         }
-
         # 转换为json字符串
         data = json.dumps(data)
 
