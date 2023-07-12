@@ -69,7 +69,13 @@ class CWeatherCommute(MBase):
             # 求每个情报板，距离最近的摄像头的桩号的下标
             nearest_index_list = self.find_nearest_camera(all_cameras_stubs_num, all_message_board_stubs_num)
 
-            # 将距离当前情报板最近的摄像头的限速值， 进行映射
+            # 查询每个情报板桩号对应的设备id
+            for stub in all_message_board_stubs:
+                sql = "select devc_id from devc_info where type = '情报板' and zhuanghao like '%" + stub[:-1] + "'"
+                msg = self.query(sql, fetchall=False)
+                print(msg)
+
+            # 将距离当前情报板最近的摄像头的限速值,进行映射
             message_board_limit = []
             for index in nearest_index_list:
                 message_board_limit.append(last_limits[index])
@@ -84,11 +90,12 @@ class CWeatherCommute(MBase):
         self.change('1')
         self.sendBack()
 
-    def query(self, sql):
+    def query(self, sql, fetchall=True):
         try:
             with self.connRVSLM.cursor() as cursor:
+                print(sql)
                 cursor.execute(sql)
-                result = cursor.fetchall()
+                result = cursor.fetchall if fetchall else cursor.fetchone
         finally:
             pass
         return result
@@ -174,33 +181,6 @@ class CWeatherCommute(MBase):
 if __name__ == '__main__':
     test = True
     if test:
-        # data = {
-        #     "msgNode": {
-        #         "topic": "302910591649516816",
-        #         "tag": "1905"
-        #     },
-        #     "paras": {
-        #         "pDef": "0",
-        #         "pIns": "1",
-        #         "wMode": "1",
-        #         "module_Deal": 0,
-        #         "data_Items": [
-        #             {
-        #                 "relevantData_Name": "Stubs",
-        #                 "relevantData_Value": "YK158+910|100*130;YK176+035|101*80",
-        #                 "relevantData_Index": "1",
-        #                 "relevantData_Type": "String",
-        #             },
-        #             {
-        #                 "relevantData_Name": "DeviceNo",
-        #                 "relevantData_Value": "DEV0133060402503",
-        #                 "relevantData_Index": "2",
-        #                 "relevantData_Type": "String",
-        #             },
-        #
-        #         ]
-        #     }
-        # }
         data = {
             "msgNode": {
                 "tag": "3",
@@ -257,7 +237,8 @@ if __name__ == '__main__':
                         "relevantData_Index": "7",
                         "relevantData_Name": "Stubs",
                         "relevantData_Type": "String",
-                        "relevantData_Value": "137+180|40*23;138+160|100*22;138+510|100*21;139+020|100*30;139+310|100*26;139+660|100*29"
+                        "relevantData_Value": "137+180|40*23;138+160|100*22;138+510|100*21;139+020|100*30;139+310|100"
+                                              "*26;139+660|100*29 "
                     }
                 ],
                 "module_Deal": "0",
