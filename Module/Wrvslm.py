@@ -8,12 +8,14 @@ sys.path.append("C:\\ModuleR")
 
 from Module.MBase import MBase
 from utils.poolRvslm import POOL_RVSLM
+from utils.poolDevice import POOL_DEVICE
 
 
 class CWeatherCommute(MBase):
     def __init__(self):
         super(CWeatherCommute, self).__init__()
         self.connRVSLM = POOL_RVSLM.connection()
+        self.connDevice = POOL_DEVICE.connection()
 
     def moduleFunction(self):
         # 工作模式
@@ -66,14 +68,27 @@ class CWeatherCommute(MBase):
             all_cameras_stubs_num = [self.transfer_stub_to_num(item) for item in all_cameras_stubs]
             all_message_board_stubs_num = [self.transfer_stub_to_num(item) for item in all_message_board_stubs]
 
+            # 将情报板桩号与其纯数字形式做映射
+            msg_stub_to_num_stub = dict()
+            for stub, stubs_num in zip(all_message_board_stubs, all_message_board_stubs_num):
+                msg_stub_to_num_stub[stub] = stubs_num
+
+            # 计算间隔桩号之间的距离
+            interval_distance = [all_message_board_stubs_num[i + 1] - all_message_board_stubs_num[i]
+                                 for i in range(len(all_message_board_stubs_num) - 1)]
+
             # 求每个情报板，距离最近的摄像头的桩号的下标
             nearest_index_list = self.find_nearest_camera(all_cameras_stubs_num, all_message_board_stubs_num)
 
+            # 将情报板桩号与设备的id做映射，因为存在有的桩号上，查不到对应情报板的设备id
+            msg_stub_to_device = dict()
+
             # 查询每个情报板桩号对应的设备id
             for stub in all_message_board_stubs:
-                sql = "select devc_id from devc_info where type = '情报板' and zhuanghao like '%" + stub[:-1] + "'"
-                msg = self.query(sql, fetchall=False)
-                print(msg)
+                sql = "select DeviceNo from H_DEVICE where SubCategory = '情报板' and location like '%" + stub[:-1] + "'"
+                msg = self.query(sql, fetchall=False, sql_server=True)
+                if msg:
+                    msg_stub_to_device[stub] = msg[0]
 
             # 将距离当前情报板最近的摄像头的限速值,进行映射
             message_board_limit = []
@@ -81,7 +96,7 @@ class CWeatherCommute(MBase):
                 message_board_limit.append(last_limits[index])
 
             # 更新全局变量
-            self.update_limit_info(all_message_board_stubs, message_board_limit)
+            self.update_stubs_info(all_message_board_stubs, message_board_limit, msg_stub_to_device)
 
         # 测试模式
         if self.wMode == '0' and self.wMode != '':
@@ -90,12 +105,28 @@ class CWeatherCommute(MBase):
         self.change('1')
         self.sendBack()
 
-    def query(self, sql, fetchall=True):
+    def query(self, sql, fetchall=True, sql_server=False):
+        print('---sql----', sql)
         try:
-            with self.connRVSLM.cursor() as cursor:
+            if sql_server:
+                with self.connDevice.cursor() as cursor:
+                    cursor.execute(sql)
+                    result = cursor.fetchall() if fetchall else cursor.fetchone()
+            else:
+                with self.connRVSLM.cursor() as cursor:
+                    cursor.execute(sql)
+                    result = cursor.fetchall() if fetchall else cursor.fetchone()
+        finally:
+            pass
+        print('sql-result', result)
+        return result
+
+    def query_Device(self, sql, fetchall=True):
+        try:
+            with self.connDevice.cursor() as cursor:
                 print(sql)
                 cursor.execute(sql)
-                result = cursor.fetchall if fetchall else cursor.fetchone
+                result = cursor.fetchall() if fetchall else cursor.fetchone()
         finally:
             pass
         return result
@@ -129,9 +160,10 @@ class CWeatherCommute(MBase):
         """
         return int(''.join(re.findall(r'\d+', stub)))
 
-    def update_limit_info(self, message_board_id, limits):
+    def update_stubs_info(self, message_board_id, limits, msg_stub_to_device):
         """
-        更新全局变量的信息，可以考虑封装为基类的方法
+        更新全局变量stubs的信息，将其给出情报板的设备号与限速值
+        :param msg_stub_to_device: 桩号上对应的情报板的id
         :param message_board_id: 情报板的桩号
         :param limits: 情报板的限速
         :return:
@@ -139,8 +171,11 @@ class CWeatherCommute(MBase):
         info = ""
         for i in range(len(message_board_id)):
             # 从数据库中查到的情报板的桩号，后面会多一个空格，所以需要[:-1]
-            temp = str(message_board_id[i][:-1]) + '|' + str(limits[i] // 10 * 10) + ';'
-            info += temp
+            # 获取对应桩号的情报板的设备号
+            device_id = msg_stub_to_device.get(message_board_id[i])
+            if device_id:
+                temp = str(device_id) + '|' + str(limits[i] // 10 * 10) + ';'
+                info += temp
         # 去除最尾部的‘;’
         info = info[:-1]
         for item in self.data_Items:
