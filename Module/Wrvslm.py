@@ -329,4 +329,3 @@ if __name__ == '__main__':
 
     # 调用实现逻辑
     weather.moduleFunction()
-
