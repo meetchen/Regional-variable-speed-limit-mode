@@ -38,7 +38,9 @@ class CWeatherCommute(MBase):
 
                 # 按星号 "*" 拆分 speed 部分为 lspeed 和 mspeed
                 speeds = speed.split("*")
+                # 安全速度
                 lspeed = int(speeds[0])
+                # 平均速度
                 mspeed = int(speeds[1])
 
                 # 将各部分添加到相应的数组中
@@ -52,9 +54,6 @@ class CWeatherCommute(MBase):
                 if stub_array[i] == last_stub:
                     begin_stub_index = i
                     break
-
-            # 限速平滑处理, 得到最终的每个路段的限速值
-            last_limits = self.speed_limit_coordinate(lspeed_array, mspeed_array, begin_stub_index)
 
             # 所有摄像机桩号，用于之后查找每个情报板距离最近的摄像头
             all_cameras_stubs = stub_array
@@ -73,9 +72,25 @@ class CWeatherCommute(MBase):
             for stub, stubs_num in zip(all_message_board_stubs, all_message_board_stubs_num):
                 msg_stub_to_num_stub[stub] = stubs_num
 
-            # 计算间隔桩号之间的距离
+            # 计算间隔桩号之间的距离， interval_distance[i] 表示第i路段与第i-1路段的距离
             interval_distance = [all_message_board_stubs_num[i + 1] - all_message_board_stubs_num[i]
                                  for i in range(len(all_message_board_stubs_num) - 1)]
+
+            # 检查是否需要限速，给出最终的限速值，否则默认使用最大安全速度
+            if self.need_speed_limit_cooperation(lspeed_array):
+                # 限速平滑处理, 得到最终的每个路段的限速值
+                last_limits = self.speed_limit_coordinate(lspeed_array, mspeed_array
+                                                          , begin_stub_index, interval_distance)
+            else:
+                last_limits = lspeed_array
+
+            # 得到最终的限速后，判断每个摄像头是否处理隧道内，处于隧道内的话，使用隧道内固定限速
+            for i in range(len(all_cameras_stubs)):
+                sql = "SELECT DeviceNo FROM H_DEVICE WHERE location = '{}' and DeviceName like '%隧道%' ".format(
+                    all_cameras_stubs[i])
+                res = self.query(sql, sql_server=True)
+                if len(res):
+                    last_limits[i] = TUNNEL_SPEED_LIMIT
 
             # 求每个情报板，距离最近的摄像头的桩号的下标
             nearest_index_list = self.find_nearest_camera(all_cameras_stubs_num, all_message_board_stubs_num)
@@ -85,7 +100,8 @@ class CWeatherCommute(MBase):
 
             # 查询每个情报板桩号对应的设备id
             for stub in all_message_board_stubs:
-                sql = "select DeviceNo from H_DEVICE where SubCategory = '情报板' and location like '%" + stub[:-1] + "'"
+                sql = "select DeviceNo from H_DEVICE where SubCategory = '情报板' and location like '%{}'".format(
+                    stub[:-1])
                 msg = self.query(sql, fetchall=False, sql_server=True)
                 if msg:
                     msg_stub_to_device[stub] = msg[0]
@@ -106,7 +122,7 @@ class CWeatherCommute(MBase):
         self.sendBack()
 
     def query(self, sql, fetchall=True, sql_server=False):
-        print('---sql----', sql)
+        # print('---sql----', sql)
         try:
             if sql_server:
                 with self.connDevice.cursor() as cursor:
@@ -117,19 +133,20 @@ class CWeatherCommute(MBase):
                     cursor.execute(sql)
                     result = cursor.fetchall() if fetchall else cursor.fetchone()
         finally:
-            pass
-        print('sql-result', result)
+            cursor.close()
+        # print('sql-result', result)
         return result
 
-    def query_Device(self, sql, fetchall=True):
-        try:
-            with self.connDevice.cursor() as cursor:
-                print(sql)
-                cursor.execute(sql)
-                result = cursor.fetchall() if fetchall else cursor.fetchone()
-        finally:
-            pass
-        return result
+    def need_speed_limit_cooperation(self, lspeed):
+        """
+        判断是否需要区域协同
+        :param lspeed:路段的安全速度
+        :return: 是否需要协同
+        """
+        for item in lspeed:
+            if item != 100:
+                return True
+        return False
 
     def find_nearest_camera(self, camera_num_list, message_boards_num_list):
         """
@@ -183,14 +200,16 @@ class CWeatherCommute(MBase):
                 item['relevantData_Value'] = info
                 break
 
-    def speed_limit_coordinate(self, lspeed, mspeed, begin_stub_index):
+    def speed_limit_coordinate(self, lspeed, mspeed, begin_stub_index, interval_distance):
         """
         平滑整个路段的限速值
+        :param interval_distance: 相邻桩号之间的间隔距离 interval_distance[i] 表示第i路段与第i-1路段的距离
         :param begin_stub_index: 最下游检测到异常情况的摄像头桩号的下标
         :param lspeed: 给定的最大安全速度
         :param mspeed: 平均速度
         :return: 平滑完后每个个路段的速度
         """
+        interval_speed = SPEED_DIFF_PER_KM * interval_distance
         last_speed = lspeed
         # 从异常检测点，从下游到上游进行遍历
         for i in range(begin_stub_index, 0, -1):
@@ -198,7 +217,9 @@ class CWeatherCommute(MBase):
             for v in range(lspeed[i], 40, -1):
                 # 当前路段新的限速值，要和下个路段的限速值差值在合理范围内
                 # 新的限速值，要和原有的平均速度差值也不能太大
-                if i + 1 < len(lspeed) and abs(v - last_speed[i + 1]) <= 2 and abs(v - mspeed[i]) <= 2:
+                if i + 1 < len(lspeed) \
+                        and abs(v - last_speed[i + 1]) <= interval_speed[i + 1] \
+                        and abs(v - mspeed[i]) <= interval_speed[i + 1]:
                     last_speed[i] = v
                     break
         return last_speed
@@ -273,7 +294,7 @@ if __name__ == '__main__':
                         "relevantData_Name": "Stubs",
                         "relevantData_Type": "String",
                         "relevantData_Value": "137+180|40*23;138+160|100*22;138+510|100*21;139+020|100*30;139+310|100"
-                                              "*26;139+660|100*29 "
+                                              "*26;139+660|100*29"
                     }
                 ],
                 "module_Deal": "0",
@@ -300,5 +321,12 @@ if __name__ == '__main__':
     weather.jsonParse(data)
     weather.working()
 
+    # 假定平均每公里限速差值
+    SPEED_DIFF_PER_KM = 16
+
+    # 隧道内固定限速
+    TUNNEL_SPEED_LIMIT = 60
+
     # 调用实现逻辑
     weather.moduleFunction()
+
